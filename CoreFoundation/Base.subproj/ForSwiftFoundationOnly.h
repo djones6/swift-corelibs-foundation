@@ -534,33 +534,26 @@ static inline unsigned int _dev_minor(dev_t rdev) {
 
 
 #if TARGET_OS_LINUX
-
-typedef struct {
-    ssize_t return_value;
-    ssize_t errno_value;
-} _SyscallResult;
-
 #ifdef __NR_statx
 
 // There is no glibc statx() function, it must be called using syscall().
 
-static inline _SyscallResult
+static inline ssize_t
 _statx(int dfd, const char *filename, unsigned int flags, unsigned int mask, struct statx *buffer) {
-    ssize_t ret = syscall(__NR_statx, dfd, filename, flags, mask, buffer);
-    _SyscallResult statx_result = {ret, errno};
-    return statx_result;
+    syscall(__NR_statx, dfd, filename, flags, mask, buffer);
+    return errno;
 }
 
 // At the moment the only extra information statx() is used for is to get the btime (file creation time).
 // This function is here instead of in FileManager.swift because there is no way of setting a conditional
 // define that could be used with a #if in the Swift code.
-static inline _SyscallResult
+static inline ssize_t
 _stat_with_btime(const char *filename, struct stat *buffer, struct timespec *btime) {
     struct statx statx_buffer = {0};
     *btime = (struct timespec) {0};
 
-    _SyscallResult statx_result = _statx(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW | AT_STATX_SYNC_AS_STAT, STATX_ALL, &statx_buffer);
-    if (statx_result.return_value == 0) {
+    ssize_t ret = _statx(AT_FDCWD, filename, AT_SYMLINK_NOFOLLOW | AT_STATX_SYNC_AS_STAT, STATX_ALL, &statx_buffer);
+    if (ret == 0) {
         *buffer = (struct stat) {
             .st_dev = makedev(statx_buffer.stx_dev_major, statx_buffer.stx_dev_minor),
             .st_ino = statx_buffer.stx_ino,
@@ -589,18 +582,16 @@ _stat_with_btime(const char *filename, struct stat *buffer, struct timespec *bti
             };
         }
     }
-    return statx_result;
+    return ret;
 }
 #else
 
 // Dummy version when compiled where struct statx is not defined in the headers.
 // Just calles lstat() instead.
-static inline _SyscallResult
+static inline ssize_t
 _stat_with_btime(const char *filename, struct stat *buffer, struct timespec *btime) {
     *btime = (struct timespec) {0};
-    ssize_t ret = lstat(filename, buffer);
-    _SyscallResult lstat_result = {ret, errno};
-    return lstat_result;
+    return lstat(filename, buffer);
 }
 #endif // __NR_statx
 

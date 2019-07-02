@@ -927,18 +927,23 @@ extension FileManager {
     // structure and optional creation date.
 
     internal func _statxFile(atPath path: String) throws -> (stat, Date?) {
-        return try _fileSystemRepresentation(withPath: path) { fsRep in
+        // Fallback if statx() is unavailable or fails
+        func _statxFallback(atPath path: String, withFileSystemRepresentation fsRep: UnsafePointer<Int8>?) throws -> (stat, Date?) {
+            let statInfo = try _lstatFile(atPath: path, withFileSystemRepresentation: fsRep)
+            return (statInfo, nil)
+        }
 
+        return try _fileSystemRepresentation(withPath: path) { fsRep in
             if supportsStatx {
                 var statInfo = stat()
                 var btime = timespec()
-                let statxResult = _stat_with_btime(fsRep, &statInfo, &btime)
-                guard statxResult.return_value == 0 else {
-                    switch statxResult.errno_value {
+                let statxErrno = _stat_with_btime(fsRep, &statInfo, &btime)
+                guard statxErrno == 0 else {
+                    switch statxErrno {
                     case 1:  // EPERM
                       return try _statxFallback(atPath: path, withFileSystemRepresentation: fsRep)
                     default:
-                      throw _NSErrorWithErrno(errno, reading: true, path: path)
+                      throw _NSErrorWithErrno(Int32(statxErrno), reading: true, path: path)
                     }
                 }
 
@@ -956,12 +961,6 @@ extension FileManager {
                 return try _statxFallback(atPath: path, withFileSystemRepresentation: fsRep)
             }
         }
-    }
-
-    // Fallback if statx() is unavailable or fails
-    private func _statxFallback(atPath path: String, withFileSystemRepresentation fsRep: UnsafePointer<Int8>?) throws -> (stat, Date?) {
-        let statInfo = try _lstatFile(atPath: path, withFileSystemRepresentation: fsRep)
-        return (statInfo, nil)
     }
 #endif
 
