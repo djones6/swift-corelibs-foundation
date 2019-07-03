@@ -540,8 +540,8 @@ static inline unsigned int _dev_minor(dev_t rdev) {
 
 static inline ssize_t
 _statx(int dfd, const char *filename, unsigned int flags, unsigned int mask, struct statx *buffer) {
-    syscall(__NR_statx, dfd, filename, flags, mask, buffer);
-    return errno;
+    ssize_t ret = syscall(__NR_statx, dfd, filename, flags, mask, buffer);
+    return ret == 0 ? ret : errno;
 }
 
 // At the moment the only extra information statx() is used for is to get the btime (file creation time).
