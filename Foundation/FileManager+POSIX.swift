@@ -943,7 +943,7 @@ extension FileManager {
                     case 1:  // EPERM
                       return try _statxFallback(atPath: path, withFileSystemRepresentation: fsRep)
                     default:
-                      throw _NSErrorWithErrno(Int32(statxErrno), reading: true, path: path)
+                      throw _NSErrorWithErrno(statxErrno, reading: true, path: path)
                     }
                 }
 
